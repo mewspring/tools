@@ -594,7 +594,7 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 	if values[0].value == 0 { // Signed or unsigned, 0 is still 0.
 		g.Printf(fromStringOneRun, typeName, usize(len(values)), lessThanZero, g.pkg.name)
 	} else {
-		g.Printf(stringOneRunWithOffset, typeName, values[0].String(), usize(len(values)), lessThanZero)
+		g.Printf(fromStringOneRunWithOffset, typeName, usize(len(values)), lessThanZero, g.pkg.name, values[0].String())
 	}
 }
 
@@ -618,17 +618,20 @@ const fromStringOneRun = `func %[1]sFromString(s string) %[4]s.%[1]s {
 
 // Arguments to format are:
 //	[1]: type name
-//	[2]: lowest defined value for type, as a string
-//	[3]: size of index element (8 for uint8 etc.)
-//	[4]: less than zero check (for signed types)
-/*
- */
-const stringOneRunWithOffset = `func (i %[1]s) String() string {
-	i -= %[2]s
-	if %[4]si >= %[1]s(len(_%[1]s_index)-1) {
-		return "%[1]s(" + strconv.FormatInt(int64(i + %[2]s), 10) + ")"
+//	[2]: size of index element (8 for uint8 etc.)
+//	[3]: less than zero check (for signed types)
+//	[4]: package name
+//	[5]: lowest defined value for type, as a string
+const fromStringOneRunWithOffset = `func %[1]sFromString(s string) %[4]s.%[1]s {
+	if len(s) == 0 {
+		return 0
 	}
-	return _%[1]s_name[_%[1]s_index[i] : _%[1]s_index[i+1]]
+	for i := range _%[1]s_index[:len(_%[1]s_index)-1] {
+		if s == _%[1]s_name[_%[1]s_index[i]:_%[1]s_index[i+1]] {
+			return %[4]s.%[1]s(i - %[5]s)
+		}
+	}
+	panic(fmt.Errorf("unable to locate %[1]s enum corresponding to %%q", s))
 }
 `
 
