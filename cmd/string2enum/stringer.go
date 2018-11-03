@@ -628,7 +628,7 @@ const fromStringOneRunWithOffset = `func %[1]sFromString(s string) %[4]s.%[1]s {
 	}
 	for i := range _%[1]s_index[:len(_%[1]s_index)-1] {
 		if s == _%[1]s_name[_%[1]s_index[i]:_%[1]s_index[i+1]] {
-			return %[4]s.%[1]s(i - %[5]s)
+			return %[4]s.%[1]s(i + %[5]s)
 		}
 	}
 	panic(fmt.Errorf("unable to locate %[1]s enum corresponding to %%q", s))
