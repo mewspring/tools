@@ -271,7 +271,7 @@ func (g *Generator) generate(typeName string) {
 	g.Printf("\t// Re-run the string2enum command to generate them again.\n")
 	g.Printf("\tvar x [1]struct{}\n")
 	for _, v := range values {
-		g.Printf("\t_ = x[%s - %s]\n", v.originalName, v.str)
+		g.Printf("\t_ = x[%s.%s - %s]\n", g.pkg.name, v.originalName, v.str)
 	}
 	g.Printf("}\n")
 	runs := splitIntoRuns(values)
