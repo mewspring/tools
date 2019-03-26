@@ -88,9 +88,11 @@ var (
 
 // Usage is a replacement usage function for the flags package.
 func Usage() {
-	fmt.Fprintf(os.Stderr, "Usage of string2enum:\n")
-	fmt.Fprintf(os.Stderr, "\tstring2enum [flags] -type T [directory]\n")
-	fmt.Fprintf(os.Stderr, "\tstring2enum [flags] -type T files... # Must be a single package\n")
+	fmt.Fprintf(os.Stderr, "Usage of stringer:\n")
+	fmt.Fprintf(os.Stderr, "\tstringer [flags] -type T [directory]\n")
+	fmt.Fprintf(os.Stderr, "\tstringer [flags] -type T files... # Must be a single package\n")
+	fmt.Fprintf(os.Stderr, "For more information, see:\n")
+	fmt.Fprintf(os.Stderr, "\thttp://godoc.org/golang.org/x/tools/cmd/stringer\n")
 	fmt.Fprintf(os.Stderr, "Flags:\n")
 	flag.PrintDefaults()
 }
@@ -132,10 +134,11 @@ func main() {
 		}
 		dir = filepath.Dir(args[0])
 	}
-	_ = dir
 
 	g.parsePackage(args, tags)
+	_ = dir
 
+	// Print the header and package clause.
 	pkg := g.pkg.name
 	if len(*pkgName) > 0 {
 		pkg = *pkgName
@@ -145,7 +148,7 @@ func main() {
 	g.Printf("package %s", pkg)
 	g.Printf("\n")
 	g.Printf("import \"fmt\"\n")
-	g.Printf("import %q\n", g.pkg.pkgPath)
+	g.Printf("import %q\n", g.pkg.path)
 
 	// Run generate for each type.
 	for _, typeName := range types {
@@ -161,8 +164,7 @@ func main() {
 		baseName := fmt.Sprintf("%s_string.go", types[0])
 		outputName = strings.ToLower(baseName)
 	}
-	err := ioutil.WriteFile(outputName, src, 0644)
-	if err != nil {
+	if err := ioutil.WriteFile(outputName, src, 0644); err != nil {
 		log.Fatalf("writing output: %s", err)
 	}
 }
@@ -203,9 +205,11 @@ type File struct {
 }
 
 type Package struct {
-	name, pkgPath string
-	defs          map[*ast.Ident]types.Object
-	files         []*File
+	name  string
+	defs  map[*ast.Ident]types.Object
+	files []*File
+	// Import path.
+	path string
 }
 
 // parsePackage analyzes the single package constructed from the patterns and tags.
@@ -231,10 +235,10 @@ func (g *Generator) parsePackage(patterns []string, tags []string) {
 // addPackage adds a type checked Package and its syntax files to the generator.
 func (g *Generator) addPackage(pkg *packages.Package) {
 	g.pkg = &Package{
-		name:    pkg.Name,
-		pkgPath: pkg.PkgPath,
-		defs:    pkg.TypesInfo.Defs,
-		files:   make([]*File, len(pkg.Syntax)),
+		name:  pkg.Name,
+		defs:  pkg.TypesInfo.Defs,
+		files: make([]*File, len(pkg.Syntax)),
+		path:  pkg.PkgPath,
 	}
 
 	for i, file := range pkg.Syntax {
@@ -266,10 +270,10 @@ func (g *Generator) generate(typeName string) {
 	// Generate code that will fail if the constants change value.
 	g.Printf("func _() {\n")
 	g.Printf("\t// An \"invalid array index\" compiler error signifies that the constant values have changed.\n")
-	g.Printf("\t// Re-run the string2enum command to generate them again.\n")
+	g.Printf("\t// Re-run the stringer command to generate them again.\n")
 	g.Printf("\tvar x [1]struct{}\n")
 	for _, v := range values {
-		g.Printf("\t_ = x[%s.%s - %s]\n", g.pkg.name, v.originalName, v.str)
+		g.Printf("\t_ = x[%s - %s]\n", v.originalName, v.str)
 	}
 	g.Printf("}\n")
 	runs := splitIntoRuns(values)
@@ -567,7 +571,6 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 	}
 }
 
-// Arguments to format are:
 //	[1]: type name
 //	[2]: size of index element (8 for uint8 etc.)
 //	[3]: less than zero check (for signed types)
