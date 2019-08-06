@@ -81,6 +81,7 @@ var (
 	typeNames   = flag.String("type", "", "comma-separated list of type names; must be set")
 	output      = flag.String("output", "", "output file name; default srcdir/<type>_string.go")
 	pkgName     = flag.String("pkg", "", "output package name")
+	samepkg     = flag.Bool("samepkg", false, "string2enum and stringer output in same package")
 	trimprefix  = flag.String("trimprefix", "", "trim the `prefix` from the generated constant names")
 	linecomment = flag.Bool("linecomment", false, "use line comment text as printed text when present")
 	buildTags   = flag.String("tags", "", "comma-separated list of build tags to apply")
@@ -146,7 +147,9 @@ func main() {
 	g.Printf("package %s", pkg)
 	g.Printf("\n")
 	g.Printf("import \"fmt\"\n")
-	g.Printf("import %q\n", g.pkg.path)
+	if g.pkg.name != "main" {
+		g.Printf("import %q\n", g.pkg.path)
+	}
 
 	// Run generate for each type.
 	for _, typeName := range types {
@@ -266,14 +269,20 @@ func (g *Generator) generate(typeName string) {
 		log.Fatalf("no values defined for type %s", typeName)
 	}
 	// Generate code that will fail if the constants change value.
-	g.Printf("func _() {\n")
-	g.Printf("\t// An \"invalid array index\" compiler error signifies that the constant values have changed.\n")
-	g.Printf("\t// Re-run the string2enum command to generate them again.\n")
-	g.Printf("\tvar x [1]struct{}\n")
-	for _, v := range values {
-		g.Printf("\t_ = x[%s.%s - %s]\n", g.pkg.name, v.originalName, v.str)
+	if !*samepkg {
+		g.Printf("func _() {\n")
+		g.Printf("\t// An \"invalid array index\" compiler error signifies that the constant values have changed.\n")
+		g.Printf("\t// Re-run the string2enum command to generate them again.\n")
+		g.Printf("\tvar x [1]struct{}\n")
+		for _, v := range values {
+			typeIdent := v.originalName
+			if g.pkg.name != "main" {
+				typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, v.originalName)
+			}
+			g.Printf("\t_ = x[%s - %s]\n", typeIdent, v.str)
+		}
+		g.Printf("}\n")
 	}
-	g.Printf("}\n")
 	runs := splitIntoRuns(values)
 	// The decision of which pattern to use depends on the number of
 	// runs in the numbers. If there's only one, it's easy. For more than
@@ -556,16 +565,22 @@ func (g *Generator) declareNameVars(runs [][]Value, typeName string, suffix stri
 func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 	values := runs[0]
 	g.Printf("\n")
-	g.declareIndexAndNameVar(values, typeName)
+	if !*samepkg {
+		g.declareIndexAndNameVar(values, typeName)
+	}
 	// The generated code is simple enough to write as a Printf format.
 	lessThanZero := ""
 	if values[0].signed {
 		lessThanZero = "i < 0 || "
 	}
+	typeIdent := typeName
+	if g.pkg.name != "main" {
+		typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, typeName)
+	}
 	if values[0].value == 0 { // Signed or unsigned, 0 is still 0.
-		g.Printf(fromStringOneRun, typeName, usize(len(values)), lessThanZero, g.pkg.name)
+		g.Printf(fromStringOneRun, typeName, usize(len(values)), lessThanZero, typeIdent)
 	} else {
-		g.Printf(fromStringOneRunWithOffset, typeName, usize(len(values)), lessThanZero, g.pkg.name, values[0].String())
+		g.Printf(fromStringOneRunWithOffset, typeName, usize(len(values)), lessThanZero, typeIdent, values[0].String())
 	}
 }
 
@@ -573,14 +588,14 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 //	[1]: type name
 //	[2]: size of index element (8 for uint8 etc.)
 //	[3]: less than zero check (for signed types)
-//	[4]: package name
-const fromStringOneRun = `func %[1]sFromString(s string) %[4]s.%[1]s {
+//	[4]: qualified package name
+const fromStringOneRun = `func %[1]sFromString(s string) %[4]s {
 	if len(s) == 0 {
 		return 0
 	}
 	for i := range _%[1]s_index[:len(_%[1]s_index)-1] {
 		if s == _%[1]s_name[_%[1]s_index[i]:_%[1]s_index[i+1]] {
-			return %[4]s.%[1]s(i)
+			return %[4]s(i)
 		}
 	}
 	panic(fmt.Errorf("unable to locate %[1]s enum corresponding to %%q", s))
@@ -591,15 +606,15 @@ const fromStringOneRun = `func %[1]sFromString(s string) %[4]s.%[1]s {
 //	[1]: type name
 //	[2]: size of index element (8 for uint8 etc.)
 //	[3]: less than zero check (for signed types)
-//	[4]: package name
+//	[4]: qualified package name
 //	[5]: lowest defined value for type, as a string
-const fromStringOneRunWithOffset = `func %[1]sFromString(s string) %[4]s.%[1]s {
+const fromStringOneRunWithOffset = `func %[1]sFromString(s string) %[4]s {
 	if len(s) == 0 {
 		return 0
 	}
 	for i := range _%[1]s_index[:len(_%[1]s_index)-1] {
 		if s == _%[1]s_name[_%[1]s_index[i]:_%[1]s_index[i+1]] {
-			return %[4]s.%[1]s(i + %[5]s)
+			return %[4]s(i + %[5]s)
 		}
 	}
 	panic(fmt.Errorf("unable to locate %[1]s enum corresponding to %%q", s))
@@ -613,18 +628,22 @@ func (g *Generator) buildMultipleRuns(runs [][]Value, typeName string) {
 	g.declareIndexAndNameVars(runs, typeName)
 	// Arguments to format are:
 	//	[1]: type name
-	//	[2]: package name
+	//	[2]: qualified package name
 	const format = `
-func %[1]sFromString(s string) %[2]s.%[1]s {
+func %[1]sFromString(s string) %[2]s {
 	if len(s) == 0 {
 		return 0
 	}
 `
-	g.Printf(format[1:], typeName, g.pkg.name)
+	typeIdent := typeName
+	if g.pkg.name != "main" {
+		typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, typeName)
+	}
+	g.Printf(format[1:], typeName, typeIdent)
 	for i, values := range runs {
 		if len(values) == 1 {
 			g.Printf("\tif s == _%s_name_%d {\n", typeName, i)
-			g.Printf("\t\treturn %s.%s(%s)\n", g.pkg.name, typeName, &values[0])
+			g.Printf("\t\treturn %s(%s)\n", typeIdent, &values[0])
 			g.Printf("}\n")
 			continue
 		}
@@ -650,26 +669,32 @@ func %[1]sFromString(s string) %[2]s.%[1]s {
 // It's a rare situation but has simple code.
 func (g *Generator) buildMap(runs [][]Value, typeName string) {
 	g.Printf("\n")
-	g.declareNameVars(runs, typeName, "")
-	// Arguments to format are:
-	//	[1]: type name
-	//	[2]: package name
-	g.Printf("\nvar _%[1]s_map = map[%[2]s.%[1]s]string{\n", typeName, g.pkg.name)
-	n := 0
-	for _, values := range runs {
-		for _, value := range values {
-			g.Printf("\t%s: _%s_name[%d:%d],\n", &value, typeName, n, n+len(value.name))
-			n += len(value.name)
+	if !*samepkg {
+		g.declareNameVars(runs, typeName, "")
+		// Arguments to format are:
+		//	[1]: type name
+		//	[2]: package name
+		g.Printf("\nvar _%[1]s_map = map[%[2]s.%[1]s]string{\n", typeName, g.pkg.name)
+		n := 0
+		for _, values := range runs {
+			for _, value := range values {
+				g.Printf("\t%s: _%s_name[%d:%d],\n", &value, typeName, n, n+len(value.name))
+				n += len(value.name)
+			}
 		}
+		g.Printf("}\n\n")
 	}
-	g.Printf("}\n\n")
-	g.Printf(stringMap, typeName, g.pkg.name)
+	typeIdent := typeName
+	if g.pkg.name != "main" {
+		typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, typeName)
+	}
+	g.Printf(stringMap, typeName, typeIdent)
 }
 
 // Arguments to format are:
 //	[1]: type name
-//	[2]: package name
-const stringMap = `func %[1]sFromString(s string) %[2]s.%[1]s {
+//	[2]: qualified package name
+const stringMap = `func %[1]sFromString(s string) %[2]s {
 	for key, val := range _%[1]s_map {
 		if s == val {
 			return key
