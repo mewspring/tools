@@ -589,7 +589,8 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 //	[2]: size of index element (8 for uint8 etc.)
 //	[3]: less than zero check (for signed types)
 //	[4]: qualified package name
-const fromStringOneRun = `func %[1]sFromString(s string) %[4]s {
+const fromStringOneRun = `// %[1]sFromString returns the %[1]s enum corresponding to s.
+func %[1]sFromString(s string) %[4]s {
 	if len(s) == 0 {
 		return 0
 	}
@@ -608,7 +609,8 @@ const fromStringOneRun = `func %[1]sFromString(s string) %[4]s {
 //	[3]: less than zero check (for signed types)
 //	[4]: qualified package name
 //	[5]: lowest defined value for type, as a string
-const fromStringOneRunWithOffset = `func %[1]sFromString(s string) %[4]s {
+const fromStringOneRunWithOffset = `// %[1]sFromString returns the %[1]s enum corresponding to s.
+func %[1]sFromString(s string) %[4]s {
 	if len(s) == 0 {
 		return 0
 	}
@@ -630,6 +632,7 @@ func (g *Generator) buildMultipleRuns(runs [][]Value, typeName string) {
 	//	[1]: type name
 	//	[2]: qualified package name
 	const format = `
+// %[1]sFromString returns the %[1]s enum corresponding to s.
 func %[1]sFromString(s string) %[2]s {
 	if len(s) == 0 {
 		return 0
@@ -694,7 +697,8 @@ func (g *Generator) buildMap(runs [][]Value, typeName string) {
 // Arguments to format are:
 //	[1]: type name
 //	[2]: qualified package name
-const stringMap = `func %[1]sFromString(s string) %[2]s {
+const stringMap = `// %[1]sFromString returns the %[1]s enum corresponding to s.
+func %[1]sFromString(s string) %[2]s {
 	for key, val := range _%[1]s_map {
 		if s == val {
 			return key
