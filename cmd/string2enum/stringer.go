@@ -79,7 +79,7 @@ import (
 
 var (
 	typeNames   = flag.String("type", "", "comma-separated list of type names; must be set")
-	output      = flag.String("output", "", "output file name; default srcdir/<type>_string.go")
+	output      = flag.String("output", "", "output file name; default srcdir/<type>_string2enum.go")
 	pkgName     = flag.String("pkg", "", "output package name")
 	samepkg     = flag.Bool("samepkg", false, "string2enum and stringer output in same package")
 	trimprefix  = flag.String("trimprefix", "", "trim the `prefix` from the generated constant names")
@@ -162,7 +162,7 @@ func main() {
 	// Write to file.
 	outputName := *output
 	if outputName == "" {
-		baseName := fmt.Sprintf("%s_string.go", types[0])
+		baseName := fmt.Sprintf("%s_string2enum.go", types[0])
 		outputName = strings.ToLower(baseName)
 	}
 	if err := ioutil.WriteFile(outputName, src, 0644); err != nil {
