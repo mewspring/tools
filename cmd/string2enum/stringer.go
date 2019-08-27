@@ -147,7 +147,7 @@ func main() {
 	g.Printf("package %s", pkg)
 	g.Printf("\n")
 	g.Printf("import \"fmt\"\n")
-	if g.pkg.name != "main" {
+	if g.pkg.name != "main" && !*samepkg {
 		g.Printf("import %q\n", g.pkg.path)
 	}
 
@@ -276,7 +276,7 @@ func (g *Generator) generate(typeName string) {
 		g.Printf("\tvar x [1]struct{}\n")
 		for _, v := range values {
 			typeIdent := v.originalName
-			if g.pkg.name != "main" {
+			if g.pkg.name != "main" && !*samepkg {
 				typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, v.originalName)
 			}
 			g.Printf("\t_ = x[%s - %s]\n", typeIdent, v.str)
@@ -574,7 +574,7 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 		lessThanZero = "i < 0 || "
 	}
 	typeIdent := typeName
-	if g.pkg.name != "main" {
+	if g.pkg.name != "main" && !*samepkg {
 		typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, typeName)
 	}
 	if values[0].value == 0 { // Signed or unsigned, 0 is still 0.
@@ -636,7 +636,7 @@ func %[1]sFromString(s string) %[2]s {
 	}
 `
 	typeIdent := typeName
-	if g.pkg.name != "main" {
+	if g.pkg.name != "main" && !*samepkg {
 		typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, typeName)
 	}
 	g.Printf(format[1:], typeName, typeIdent)
@@ -685,7 +685,7 @@ func (g *Generator) buildMap(runs [][]Value, typeName string) {
 		g.Printf("}\n\n")
 	}
 	typeIdent := typeName
-	if g.pkg.name != "main" {
+	if g.pkg.name != "main" && !*samepkg {
 		typeIdent = fmt.Sprintf("%s.%s", g.pkg.name, typeName)
 	}
 	g.Printf(stringMap, typeName, typeIdent)
