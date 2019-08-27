@@ -588,7 +588,7 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 //	[1]: type name
 //	[2]: size of index element (8 for uint8 etc.)
 //	[3]: less than zero check (for signed types)
-//	[4]: qualified package name
+//	[4]: qualified type name
 const fromStringOneRun = `// %[1]sFromString returns the %[1]s enum corresponding to s.
 func %[1]sFromString(s string) %[4]s {
 	if len(s) == 0 {
@@ -607,7 +607,7 @@ func %[1]sFromString(s string) %[4]s {
 //	[1]: type name
 //	[2]: size of index element (8 for uint8 etc.)
 //	[3]: less than zero check (for signed types)
-//	[4]: qualified package name
+//	[4]: qualified type name
 //	[5]: lowest defined value for type, as a string
 const fromStringOneRunWithOffset = `// %[1]sFromString returns the %[1]s enum corresponding to s.
 func %[1]sFromString(s string) %[4]s {
@@ -627,10 +627,12 @@ func %[1]sFromString(s string) %[4]s {
 // For this pattern, a single Printf format won't do.
 func (g *Generator) buildMultipleRuns(runs [][]Value, typeName string) {
 	g.Printf("\n")
-	g.declareIndexAndNameVars(runs, typeName)
+	if !*samepkg {
+		g.declareIndexAndNameVars(runs, typeName)
+	}
 	// Arguments to format are:
 	//	[1]: type name
-	//	[2]: qualified package name
+	//	[2]: qualified type name
 	const format = `
 // %[1]sFromString returns the %[1]s enum corresponding to s.
 func %[1]sFromString(s string) %[2]s {
@@ -653,16 +655,16 @@ func %[1]sFromString(s string) %[2]s {
 		// Arguments to format are:
 		//	[1]: type name
 		//	[2]: run index
-		//	[3]: package name
+		//	[3]: qualified type name
 		//	[4]: lowest defined value for type, as a string
 		const format = `
 	for i := range _%[1]s_index_%[2]d[:len(_%[1]s_index_%[2]d)-1] {
 		if s == _%[1]s_name_%[2]d[_%[1]s_index_%[2]d[i]:_%[1]s_index_%[2]d[i+1]] {
-			return %[3]s.%[1]s(i + %[4]s)
+			return %[3]s(i + %[4]s)
 		}
 	}
 `
-		g.Printf(format[1:], typeName, i, g.pkg.name, &values[0])
+		g.Printf(format[1:], typeName, i, typeIdent, &values[0])
 	}
 	g.Printf("\tpanic(fmt.Errorf(\"unable to locate %s enum corresponding to %%q\", s))\n", typeName)
 	g.Printf("}\n")
@@ -696,7 +698,7 @@ func (g *Generator) buildMap(runs [][]Value, typeName string) {
 
 // Arguments to format are:
 //	[1]: type name
-//	[2]: qualified package name
+//	[2]: qualified type name
 const stringMap = `// %[1]sFromString returns the %[1]s enum corresponding to s.
 func %[1]sFromString(s string) %[2]s {
 	for key, val := range _%[1]s_map {
