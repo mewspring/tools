@@ -304,6 +304,8 @@ func (g *Generator) generate(typeName string) {
 	default:
 		g.buildMap(runs, typeName)
 	}
+	// Check for duplicate string values.
+	g.validateRuns(runs, typeName)
 }
 
 // splitIntoRuns breaks the values into runs of contiguous sequences.
@@ -709,3 +711,25 @@ func %[1]sFromString(s string) %[2]s {
 	panic(fmt.Errorf("unable to locate %[1]s enum corresponding to %%q", s))
 }
 `
+
+// validateRuns checks for duplicate string values in the runs of the given type
+// name.
+func (g *Generator) validateRuns(runs [][]Value, typeName string) {
+	// TODO: implement
+	g.Printf("\n")
+	g.Printf("func _(s string) {\n")
+	g.Printf("\t// Check for duplicate string values in type %q.\n", typeName)
+	g.Printf("\tswitch s {\n")
+	for _, values := range runs {
+		for _, value := range values {
+			if value.signed {
+				g.Printf("\t// %d\n", int64(value.value))
+			} else {
+				g.Printf("\t// %d\n", value.value)
+			}
+			g.Printf("\tcase %q:\n", value.name)
+		}
+	}
+	g.Printf("\t}\n")
+	g.Printf("}\n")
+}
